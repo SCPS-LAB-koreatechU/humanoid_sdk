@@ -17,7 +17,7 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="SCPS Lab",
-    maintainer_email="hexk0131@gmail.com",
+    maintainer_email="jeong510@koreatech.ac.kr",
     description="Per-motor angle control of the Berkeley Humanoid Lite arms over CAN.",
     license="MIT",
     entry_points={

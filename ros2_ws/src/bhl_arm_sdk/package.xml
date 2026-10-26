@@ -4,7 +4,7 @@
   <name>bhl_arm_sdk</name>
   <version>0.1.0</version>
   <description>Per-motor angle control of the Berkeley Humanoid Lite arms over CAN (recoil actuators): parameter / topic interface, slider GUI, G1-style scripted moves.</description>
-  <maintainer email="hexk0131@gmail.com">SCPS Lab</maintainer>
+  <maintainer email="jeong510@koreatech.ac.kr">SCPS Lab</maintainer>
   <license>MIT</license>
 
   <exec_depend>rclpy</exec_depend>
