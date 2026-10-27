@@ -11,6 +11,7 @@ import pytest
 
 from bhl_arm_sdk.config import ArmConfig, JointSpec, load_config
 from bhl_arm_sdk.controller import ArmController
+from bhl_arm_sdk.diagnostics import ERROR, OK, WARN, diagnostics
 from bhl_arm_sdk.recoil_can import Function, Mode, Param, RecoilBus
 
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "bhl_arms.yaml"
@@ -248,6 +249,57 @@ def test_pdo_reply_from_other_device_is_ignored():
     other = reply(Function.TRANSMIT_PDO_2, 6, struct.pack("<ff", 5.0, 0.0))
     bus = make_bus([other])
     assert bus.exchange_pdo_2(8, 0.0) is None
+
+
+# ----------------------------------------------------------------- diagnostics
+def by_name(entries):
+    return {e["name"]: e for e in entries}
+
+
+def test_diagnostics_output_off_then_live():
+    arm = ArmController(two_joint_config(), dry_run=True)
+    entries = by_name(diagnostics(arm.status()))
+    assert entries["arm_controller"]["level"] == WARN                 # nothing enabled yet
+    assert entries["arm_controller"]["message"].startswith("DRY RUN")
+    assert entries["arm_controller: a"]["level"] == WARN
+    assert entries["arm_controller: a"]["hardware_id"] == "left:1"
+    arm.enable()
+    arm.set_goal("a", 10.0)
+    run(arm, 1.0)
+    entries = by_name(diagnostics(arm.status()))
+    assert entries["arm_controller"]["level"] == OK
+    assert entries["arm_controller"]["values"]["live"] == "2"
+    assert entries["arm_controller: a"]["level"] == OK
+    assert entries["arm_controller: a"]["values"]["measured_deg"] == "10.00"
+    assert entries["arm_controller: a"]["values"]["limits_deg"] == "-90..45"
+
+
+def test_diagnostics_faults_and_estop_are_errors():
+    motors = {1: FakeMotor(answers=False), 2: FakeMotor(reversed_=True)}
+    arm, _ = live(two_joint_config(max_speed_deg=60.0), motors)
+    arm.enable()                                   # a: NO_REPLY, b: live
+    entries = by_name(diagnostics(arm.status()))
+    assert entries["arm_controller: a"]["level"] == ERROR
+    assert entries["arm_controller: a"]["message"] == "NO_REPLY"
+    assert entries["arm_controller: b"]["level"] == OK
+    assert entries["arm_controller"]["level"] == ERROR and "a NO_REPLY" in entries["arm_controller"]["message"]
+    arm.set_goal("b", 40.0)
+    run(arm, 1.0)                                  # b runs away -> TRACKING -> E-STOP
+    entries = by_name(diagnostics(arm.status()))
+    assert entries["arm_controller"]["level"] == ERROR
+    assert entries["arm_controller"]["message"].startswith("E-STOP latched")
+    assert entries["arm_controller"]["values"]["estop"] == "True"
+    assert entries["arm_controller: b"]["message"] == "TRACKING"
+
+
+def test_diagnostics_disabled_joint_is_ok_not_warn():
+    config = two_joint_config()
+    config.joints[1].enabled = False
+    arm = ArmController(config, dry_run=True)
+    entries = by_name(diagnostics(arm.status()))
+    assert entries["arm_controller: b"]["level"] == OK
+    assert "enabled: false" in entries["arm_controller: b"]["message"]
+    assert entries["arm_controller"]["values"]["driven"] == "1"
 
 
 if __name__ == "__main__":

@@ -6,6 +6,8 @@ Berkeley Humanoid Lite 양팔 모터(recoil 액추에이터, CAN)를 **모터별
 - 슬라이더 GUI로 모터마다 각도를 조절합니다
 - Unitree G1 `g1_arm7_sdk_dds_example.cpp`와 같은 순서(현재 자세 → 목표 → 복귀 → 해제)로 동작을 스크립트로 실행합니다
 
+로봇 컴퓨터와 원격 PC로 나눠 띄우는 bring-up(`/joint_states` 병합, `/tf`, `/diagnostics`, 네트워크, CAN 자동 설정)은 [`bhl_bringup`](../bhl_bringup/README.md)에 있습니다. 아래 `arm_sdk.launch.py`는 한 PC에서 벤치 작업할 때의 구성입니다.
+
 참고한 코드:
 - [HybridRobotics/Berkeley-Humanoid-Lite-Lowlevel@652777c](https://github.com/HybridRobotics/Berkeley-Humanoid-Lite-Lowlevel/tree/652777cc7c49884e7cd7ddfada758dc1979bf627): `recoil/core.py`(CAN 프레임), `robot/bimanual.py`(모터 초기화 순서, 시작 자세를 0점으로)
 - [unitree_sdk2 g1_arm7_sdk_dds_example.cpp](https://github.com/unitreerobotics/unitree_sdk2/blob/main/example/g1/high_level/g1_arm7_sdk_dds_example.cpp): 현재 자세에서 시작, 관절당 최대 속도로 목표까지 이동, 해제 단계
@@ -95,8 +97,9 @@ ros2 run bhl_arm_sdk arm_sequence --pose arm_left_elbow_pitch_joint=30 arm_right
 | `/arm_controller/reset_estop` | `std_srvs/Trigger` | 비상정지 해제 (토크는 꺼진 채) |
 | `/arm_controller/home` | `std_srvs/Trigger` | 모든 목표를 0° |
 | `/arm_controller/target` | `sensor_msgs/JointState` (입력) | 목표 [rad] |
-| `/joint_states` | `sensor_msgs/JointState` (출력) | 측정 각도 [rad] |
+| `/joint_states` | `sensor_msgs/JointState` (출력) | 측정 각도 [rad] (bring-up에서는 `/arm_controller/joint_states`로 리맵되고 `joint_state_publisher`가 `/joint_states`를 냄) |
 | `/arm_controller/status` | `std_msgs/String` (출력) | JSON: 관절별 측정 / 명령 / 목표 / 오류 |
+| `/diagnostics` | `diagnostic_msgs/DiagnosticArray` (출력, 1 Hz) | 요약 1개 + 관절별 1개: OK 구동 중, WARN 출력 꺼짐, ERROR 고장(`NO_REPLY`, `LOST`, `TRACKING` …)이나 비상정지. `rqt_robot_monitor`로 봄 |
 
 ## 설정 (`config/bhl_arms.yaml`)
 
