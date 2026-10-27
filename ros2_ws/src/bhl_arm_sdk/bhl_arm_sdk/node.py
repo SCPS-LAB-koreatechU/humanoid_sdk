@@ -24,9 +24,15 @@ Each joint then slews to its target at most `max_speed_deg` deg/s.
   ~/target        sensor_msgs/JointState  (in)  goals [rad]
   /joint_states   sensor_msgs/JointState  (out) measured [rad]
   ~/status        std_msgs/String    (out) JSON: per joint measured / command / goal / fault
+  /diagnostics    diagnostic_msgs/DiagnosticArray (out, 1 Hz) the same, one status per
+                                     joint, for rqt_robot_monitor / diagnostic_aggregator
 
 Parameters: config (YAML path), dry_run (default true: no CAN is opened, the
 angle follows the command), max_speed_deg, target.<joint> [deg].
+
+Under bhl_bringup robot.launch.py, /joint_states is remapped to
+/arm_controller/joint_states and joint_state_publisher + robot_state_publisher
+turn it into the full-URDF /joint_states and /tf.
 """
 
 from __future__ import annotations
@@ -37,6 +43,7 @@ from pathlib import Path
 
 import rclpy
 from ament_index_python.packages import get_package_share_directory
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult, FloatingPointRange
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -46,6 +53,9 @@ from std_srvs.srv import SetBool, Trigger
 
 from .config import load_config
 from .controller import ArmController
+from .diagnostics import diagnostics
+
+DIAGNOSTIC_LEVELS = (DiagnosticStatus.OK, DiagnosticStatus.WARN, DiagnosticStatus.ERROR, DiagnosticStatus.STALE)
 
 
 class ArmControllerNode(Node):
@@ -75,6 +85,7 @@ class ArmControllerNode(Node):
 
         self.joint_pub = self.create_publisher(JointState, "/joint_states", 10)
         self.status_pub = self.create_publisher(String, "~/status", 10)
+        self.diagnostics_pub = self.create_publisher(DiagnosticArray, "/diagnostics", 10)
         self.create_subscription(JointState, "~/target", self._on_target, 10)
         self.create_service(SetBool, "~/enable", self._on_enable)
         self.create_service(Trigger, "~/estop", self._on_estop)
@@ -82,6 +93,7 @@ class ArmControllerNode(Node):
         self.create_service(Trigger, "~/home", self._on_home)
         self.create_timer(self.dt, self._tick)
         self.create_timer(0.1, self._publish_status)
+        self.create_timer(1.0, self._publish_diagnostics)
 
         mode = "DRY RUN (no CAN opened)" if dry_run else f"LIVE on {sorted(set(config.buses.values()))}"
         self.get_logger().info(
@@ -170,6 +182,16 @@ class ArmControllerNode(Node):
 
     def _publish_status(self) -> None:
         self.status_pub.publish(String(data=json.dumps(self.arm.status())))
+
+    def _publish_diagnostics(self) -> None:
+        message = DiagnosticArray()
+        message.header.stamp = self.get_clock().now().to_msg()
+        for entry in diagnostics(self.arm.status()):
+            status = DiagnosticStatus(level=DIAGNOSTIC_LEVELS[entry["level"]], name=entry["name"],
+                                      message=entry["message"], hardware_id=entry["hardware_id"])
+            status.values = [KeyValue(key=k, value=v) for k, v in entry["values"].items()]
+            message.status.append(status)
+        self.diagnostics_pub.publish(message)
 
     def destroy_node(self) -> None:
         self.arm.close()

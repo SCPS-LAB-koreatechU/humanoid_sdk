@@ -1,0 +1,19 @@
+# The URDF + meshes this workspace draws and publishes /tf from live in the
+# Berkeley-Humanoid-Lite repository (ros2_ws/src/berkeley_humanoid_lite_description).
+# Either build that repo's ros2_ws separately and point env.sh at it
+# (BHL_DESCRIPTION_WS), or import it here with vcstool:
+#
+#   sudo apt install python3-vcstool
+#   cd ~/humanoid_sdk/ros2_ws
+#   vcs import src < ../humanoid.repos
+#   git -C src/Berkeley-Humanoid-Lite-origin- submodule update --init source/berkeley_humanoid_lite_assets   # meshes/
+#   colcon build --symlink-install --packages-select berkeley_humanoid_lite_description bhl_arm_sdk bhl_bringup
+#
+# --packages-select keeps colcon off berkeley_humanoid_lite_moveit_config (it needs
+# MoveIt, which the robot computer does not have). If the submodule URL (git@github.com:)
+# fails without an SSH key:  git config --global url."https://github.com/".insteadOf git@github.com:
+repositories:
+  Berkeley-Humanoid-Lite-origin-:
+    type: git
+    url: https://github.com/SCPS-LAB-koreatechU/Berkeley-Humanoid-Lite-origin-.git
+    version: main
