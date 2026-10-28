@@ -101,6 +101,7 @@ URDF(`berkeley_humanoid_lite_description`)가 양쪽 모두 필요합니다 — 
 - 같은 `ROS_DOMAIN_ID`: `env.sh`가 92로 맞춥니다. 바꾸려면 양쪽 다 `BHL_ROS_DOMAIN_ID=77 source env.sh` (RDK X5 쪽 `bhl_onboard`는 77을 씁니다, DexHand MoveIt은 0)
 - 같은 RMW: 기본 Fast DDS. 한쪽만 `RMW_IMPLEMENTATION`을 바꾸면 서로 안 보입니다
 - 멀티캐스트 확인: 한쪽에서 `ros2 multicast receive`, 다른 쪽에서 `ros2 multicast send`. 안 오면 Wi-Fi AP가 멀티캐스트를 막는 경우입니다 → `config/fastdds_unicast.xml`에 상대 주소를 적고 양쪽에서 `export FASTRTPS_DEFAULT_PROFILES_FILE=<경로>`, `ros2 daemon stop`
+- 유선과 Wi-Fi가 둘 다 켜져 있으면 DDS가 Wi-Fi로도 보내 publish가 막히고 제어 루프가 멈출 수 있습니다 → 양쪽 다 자기 유선 주소를 `~/.config/bhl_arm_sdk/dds_ip`에 적거나(`echo 172.18.49.21 > ~/.config/bhl_arm_sdk/dds_ip`) `BHL_DDS_IP=...`로 주고 `source env.sh`, `ros2 daemon stop`. `env.sh`가 그 주소(+루프백, 공유메모리)만 쓰는 Fast DDS 프로필을 만들어 `FASTRTPS_DEFAULT_PROFILES_FILE`로 지정합니다. 한쪽만 고정하면 부족합니다
 - Docker 안에서 돌리면(젯슨 나노, TX2의 Humble 컨테이너) `--network host --ipc host`
 - `ros2 topic hz /joint_states`로 PC에서 50 Hz가 나오는지, `ros2 topic delay /joint_states`로 지연을 봅니다 (시계가 어긋나면 지연이 이상하게 나오니 양쪽 NTP)
 
