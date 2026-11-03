@@ -7,6 +7,7 @@
     ros2 launch bhl_bringup robot.launch.py arm:=false joint_state_sources:=/bhl/joint_states
                                         # joint states come from somewhere else (bhl_onboard on the RDK X5)
     ros2 launch bhl_bringup robot.launch.py joint_state_sources:=/arm_controller/joint_states,/hand/joint_states
+    ros2 launch bhl_bringup robot.launch.py hands:=both            # + DexHand nodes (bhl_hand_sdk), same dry_run
 
 Runs on the computer that is wired to the motors (Jetson / RDK X5 / bench PC):
 
@@ -18,6 +19,11 @@ Runs on the computer that is wired to the motors (Jetson / RDK X5 / bench PC):
                                           every movable joint of the URDF, 0 rad for the ones no source
                                           has reported yet (wrists, fingers, until their driver exists)
     robot_state_publisher                 URDF + /joint_states -> /tf, /tf_static, /robot_description
+    hand_left, hand_right   bhl_hand_sdk  (hands:=left|right|both) one process and CAN socket per
+                                          DexHand on the same can0; ~/enable ~/hold ~/resume ~/off,
+                                          ~/delivery (APPLIED / NO_REPLY / REJECT_ per set),
+                                          follows /arm_controller/status E-STOP. No /joint_states:
+                                          the finger servos measure nothing.
 
 Nothing graphical runs here; that is remote.launch.py on the PC. Both only need
 to share ROS_DOMAIN_ID (env.sh). Without a URDF -- description package not
@@ -35,6 +41,7 @@ from launch_ros.actions import Node
 
 DESCRIPTION_PACKAGE = "berkeley_humanoid_lite_description"
 ARM_PACKAGE = "bhl_arm_sdk"
+HAND_PACKAGE = "bhl_hand_sdk"
 ARM_STATES = "/arm_controller/joint_states"
 URDF_FILES = {
     "stock": "berkeley_humanoid_lite.urdf",
@@ -69,6 +76,32 @@ def find_urdf(explicit: str, model: str) -> tuple[str, str]:
 
 def default_arm_config() -> str:
     return str(Path(get_package_share_directory(ARM_PACKAGE)) / "config" / "bhl_arms.yaml")
+
+
+def parse_hands(text: str) -> list[str]:
+    """'both' -> ['left', 'right']; 'none' / '' -> []; 'right' or 'left,right' as given."""
+    text = text.strip().lower()
+    if text in ("", "none", "false"):
+        return []
+    if text == "both":
+        return ["left", "right"]
+    return [h.strip() for h in text.split(",") if h.strip()]
+
+
+def hand_nodes(context, hands: list[str]) -> list:
+    try:
+        get_package_share_directory(HAND_PACKAGE)
+    except PackageNotFoundError:
+        return [LogInfo(msg=f"[bhl_bringup] hands:={','.join(hands)} but {HAND_PACKAGE} is not built; "
+                            "no hand nodes started.")]
+    params = {"dry_run": truthy(context, "dry_run")}
+    hand_config = LaunchConfiguration("hand_config").perform(context)
+    if hand_config:
+        params["config"] = hand_config
+    return [Node(package=HAND_PACKAGE, executable="hand_controller", name=f"hand_{hand}", output="screen",
+                 parameters=[{**params, "hand": hand}],
+                 sigterm_timeout="5")     # time to send HOLD on shutdown
+            for hand in hands]
 
 
 def launch_setup(context, *_args, **_kwargs):
@@ -108,6 +141,9 @@ def launch_setup(context, *_args, **_kwargs):
                  parameters=[{"robot_description": Path(urdf).read_text(),
                               "publish_frequency": float(rate)}]),
         ]
+    hands = parse_hands(LaunchConfiguration("hands").perform(context))
+    if hands:
+        actions += hand_nodes(context, hands)
     return actions
 
 
@@ -129,5 +165,9 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("publish_tf", default_value="true",
                               description="run joint_state_publisher + robot_state_publisher here "
                                           "(false if another machine already does)"),
+        DeclareLaunchArgument("hands", default_value="none",
+                              description="DexHand nodes from bhl_hand_sdk: none | left | right | both"),
+        DeclareLaunchArgument("hand_config", default_value="",
+                              description="bhl_hand_sdk profiles; default: its config/dexhand.yaml"),
         OpaqueFunction(function=launch_setup),
     ])

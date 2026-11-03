@@ -1,0 +1,56 @@
+# DexHand profiles for bhl_hand_sdk.
+#
+# open_us / close_us are the 풀림 / 당김 pulse widths from dexhand_control
+# (README "확정한 PWM 배선" for the left hand, RIGHT_HAND_PINMAP.md for the right,
+# 2026-11-03). Channel order = CAN order:
+#    1 소지 위   2 소지 아래   3 약지 위   4 약지 아래   5 중지 위   6 중지 아래
+#    7 검지 위   8 검지 아래   9 검지 끝  10 중지 끝  11 약지 끝  12 소지 끝
+#   13 엄지 오른쪽 당김  14 엄지 왼쪽 당김  15 엄지 끝
+# If profiles/*_hand.json change, change these too (and profile_tag).
+#
+# protocol: 2 needs the v2 firmware (STATUS / PONG replies). The firmware on the
+# hands today is v1 -- set protocol: 1 until the v2 sketch is uploaded; the SDK
+# then streams without delivery confirmation.
+# profile_tag: first 8 hex digits of kProfileSha256 in that hand's BoardConfig.h.
+# enable refuses a hand whose PONG carries another tag (wrong calibration flashed).
+
+defaults:
+  channel: can0          # the arms' bus; the hand opens its own socket on it
+  protocol: 2
+
+hands:
+  left:
+    node: 60
+    profile_tag: c3c778d2
+    open_us:  [1775, 700, 1750, 700, 725, 1675, 725, 1750, 2000, 2000, 700, 700, 1000, 2100, 700]
+    close_us: [700, 1625, 700, 1675, 1675, 725, 1700, 875, 700, 700, 2000, 2000, 1900, 700, 1900]
+  right:
+    node: 61
+    profile_tag: c7b282e4
+    open_us:  [850, 1700, 1700, 850, 1750, 850, 1750, 700, 700, 700, 2000, 2000, 2300, 2100, 700]
+    close_us: [1775, 800, 800, 1725, 825, 1750, 700, 1725, 2100, 2000, 750, 800, 700, 700, 1900]
+
+control:
+  control_rate_hz: 50.0     # one 5-frame set per cycle; firmware watchdog is 1 s
+  max_speed: 2.0            # [stroke fraction / s] per channel: open -> closed in 0.5 s
+  reply_timeout: 0.005      # [s] wait for the STATUS of the set just sent (v2); a later
+                            # APPLIED still counts (stats.late) and clears the miss
+  max_missed: 10            # sets in a row without APPLIED -> LOST (0.2 s)
+  ping_timeout: 0.05        # [s]
+  estop_action: hold        # hold: keep the grip | off: stop the PWM (lets go)
+  # Tendons pulling against each other: the two fractions may add up to at most
+  # max_pair_sum. Only the thumb's left / right pull is known to oppose; add
+  # others once they are measured on the hand.
+  antagonist_pairs: [[13, 14]]
+  max_pair_sum: 1.0
+
+# Named poses, pull fractions 0..1 (one value = every channel). "open" is
+# always defined (all 0). These are starting points to check on the hand,
+# not tuned grasps.
+grips:
+  # every finger flexed, thumb tip flexed, thumb swung with the right pull only
+  power: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1]
+  # index and thumb only
+  pinch: [0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1]
+  # index pointing, the rest flexed
+  point: [1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1]

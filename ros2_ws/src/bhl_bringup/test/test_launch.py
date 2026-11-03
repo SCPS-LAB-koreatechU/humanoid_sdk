@@ -97,7 +97,8 @@ class Context:
 @pytest.fixture
 def ros(tmp_path, monkeypatch):
     """Fake ROS: a share directory per package, loaded launch modules."""
-    shares = {"bhl_bringup": PACKAGE_DIR, "bhl_arm_sdk": PACKAGE_DIR.parent / "bhl_arm_sdk"}
+    shares = {"bhl_bringup": PACKAGE_DIR, "bhl_arm_sdk": PACKAGE_DIR.parent / "bhl_arm_sdk",
+              "bhl_hand_sdk": PACKAGE_DIR.parent / "bhl_hand_sdk"}
 
     def get_package_share_directory(name):
         if name not in shares:
@@ -240,6 +241,45 @@ def test_robot_publish_tf_false_keeps_joint_states_on_the_controller(ros):
     assert set(started) == {"arm_controller"}
     assert started["arm_controller"].remappings == []
     assert not logs(actions)
+
+
+def test_robot_starts_no_hand_by_default(ros):
+    ros.with_description()
+    assert not [a for a in setup(ros.load("robot")) if isinstance(a, Node) and a.package == "bhl_hand_sdk"]
+
+
+def test_robot_hands_both_follow_dry_run(ros):
+    ros.with_description()
+    actions = setup(ros.load("robot"), hands="both", dry_run="false", hand_config="/tmp/hands.yaml")
+    hands = [a for a in actions if isinstance(a, Node) and a.package == "bhl_hand_sdk"]
+    assert [h.name for h in hands] == ["hand_left", "hand_right"]
+    assert hands[1].parameters == [{"dry_run": False, "config": "/tmp/hands.yaml", "hand": "right"}]
+    assert all(h.executable == "hand_controller" and h.sigterm_timeout == "5" for h in hands)
+    assert "arm_controller" in nodes(actions)
+
+
+def test_robot_hands_without_the_package_is_reported(ros, monkeypatch):
+    ros.with_description()
+    module = ros.load("robot")
+    real = module.get_package_share_directory
+
+    def missing(name):
+        if name == "bhl_hand_sdk":
+            raise module.PackageNotFoundError(name)
+        return real(name)
+
+    monkeypatch.setattr(module, "get_package_share_directory", missing)
+    actions = setup(module, hands="right")
+    assert not [a for a in actions if isinstance(a, Node) and a.package == "bhl_hand_sdk"]
+    assert any("bhl_hand_sdk is not built" in m for m in logs(actions))
+
+
+def test_parse_hands(ros):
+    module = ros.load("robot")
+    assert module.parse_hands("none") == [] and module.parse_hands("") == []
+    assert module.parse_hands("both") == ["left", "right"]
+    assert module.parse_hands("right") == ["right"]
+    assert module.parse_hands("left, right") == ["left", "right"]
 
 
 def test_parse_sources(ros):
