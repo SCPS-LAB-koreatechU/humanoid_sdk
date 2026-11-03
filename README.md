@@ -6,6 +6,7 @@ Berkeley Humanoid Lite 상반신(양팔 recoil 모터, CAN)을 ROS 2 Humble에�
 |---|---|
 | [`bhl_bringup`](ros2_ws/src/bhl_bringup) | bring-up. `robot.launch.py`(로봇 컴퓨터: `arm_controller` + `joint_state_publisher` + `robot_state_publisher` → `/joint_states`, `/tf`, `/robot_description`, `/diagnostics`), `remote.launch.py`(원격 PC: RViz, 슬라이더), `demo.launch.py`(한 PC). 네트워크, CAN, 자동 시작 설정 |
 | [`bhl_arm_sdk`](ros2_ws/src/bhl_arm_sdk) | 모터별 각도 제어 노드 `arm_controller`(CAN ↔ 관절 상태, 목표 토픽, 파라미터, 서비스, 안전 장치), 슬라이더 GUI, G1 예제식 시퀀스, 관절 맵 `config/bhl_arms.yaml` |
+| [`bhl_hand_sdk`](ros2_ws/src/bhl_hand_sdk) | DexHand 양손 제어 노드 `hand_controller`(팔과 같은 `can0`, 손마다 별도 프로세스), 세트마다 전달 결과(`APPLIED`, `NO_REPLY`, `REJECT_*`, v2 펌웨어), 이름 있는 grip, HOLD/RESUME/OFF, 팔 E-STOP 연동, 벤치 도구 `hand_cli`. 손 보드별 v2 펌웨어와 업로드 가이드는 `firmware/` (`UPLOAD_GUIDE.md`), 보드 없이 확인하는 가상 손 보드와 RViz 손가락 추정은 `SIM_GUIDE.md` |
 
 ```
 humanoid_sdk/
@@ -22,7 +23,7 @@ humanoid_sdk/
 git clone https://github.com/SCPS-LAB-koreatechU/humanoid_sdk ~/humanoid_sdk
 cd ~/humanoid_sdk/ros2_ws
 source /opt/ros/humble/setup.bash
-colcon build --symlink-install --packages-select bhl_arm_sdk bhl_bringup
+colcon build --symlink-install --packages-select bhl_arm_sdk bhl_hand_sdk bhl_bringup
 source ../env.sh
 
 ros2 launch bhl_bringup demo.launch.py                    # 연습 모드 + RViz + 슬라이더 (CAN 안 엶)
@@ -35,7 +36,7 @@ RViz에 로봇을 그리고 `/tf`를 내려면 URDF가 필요합니다: `Berkele
 ## 테스트 (ROS, CAN 없이)
 
 ```bash
-python3 -m pytest -q ros2_ws/src/bhl_arm_sdk/test ros2_ws/src/bhl_bringup/test
+python3 -m pytest -q ros2_ws/src/bhl_arm_sdk/test ros2_ws/src/bhl_bringup/test ros2_ws/src/bhl_hand_sdk/test
 ```
 
 ## 관련 저장소

@@ -3,6 +3,8 @@
     ros2 launch bhl_bringup demo.launch.py
     ros2 launch bhl_bringup demo.launch.py model:=stock gui:=false
     ros2 launch bhl_bringup demo.launch.py dry_run:=false       # bench: PC wired to the arms
+    ros2 launch bhl_bringup demo.launch.py hands:=both hand_channel:=sim
+                                    # + DexHands on simulated boards, fingers drawn in RViz (arms dry run)
 
 Same two launch files as the real split, so what works here works across the
 network once ROS_DOMAIN_ID matches (env.sh).
@@ -21,7 +23,8 @@ PACKAGE = "bhl_bringup"
 
 def generate_launch_description() -> LaunchDescription:
     launch_dir = Path(get_package_share_directory(PACKAGE)) / "launch"
-    robot_args = ("dry_run", "config", "model", "urdf", "joint_state_sources", "rate")
+    robot_args = ("dry_run", "config", "model", "urdf", "joint_state_sources", "rate",
+                  "hands", "hand_config", "hand_channel", "hand_estimate")
     remote_args = ("rviz", "gui", "rviz_config")
     return LaunchDescription([
         DeclareLaunchArgument("dry_run", default_value="true"),
@@ -30,6 +33,10 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("urdf", default_value=""),
         DeclareLaunchArgument("joint_state_sources", default_value="/arm_controller/joint_states"),
         DeclareLaunchArgument("rate", default_value="50"),
+        DeclareLaunchArgument("hands", default_value="none"),
+        DeclareLaunchArgument("hand_config", default_value=""),
+        DeclareLaunchArgument("hand_channel", default_value=""),
+        DeclareLaunchArgument("hand_estimate", default_value="true"),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("gui", default_value="true"),
         DeclareLaunchArgument("rviz_config", default_value=""),

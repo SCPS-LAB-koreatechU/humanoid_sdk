@@ -84,8 +84,12 @@ URDF(`berkeley_humanoid_lite_description`)가 양쪽 모두 필요합니다 — 
 | `rate` | `50` | `/joint_states`와 `/tf` 발행 주기 [Hz] |
 | `arm` | `true` | `false`면 `arm_controller`를 띄우지 않음 (상태가 다른 노드에서 올 때) |
 | `publish_tf` | `true` | `false`면 병합과 `/tf`를 생략 (다른 컴퓨터가 이미 할 때). `arm_controller`가 `/joint_states`를 직접 냄 |
+| `hands` | `none` | DexHand 노드(`bhl_hand_sdk`): `none`, `left`, `right`, `both` |
+| `hand_config` | bhl_hand_sdk의 `dexhand.yaml` | 손 프로필 |
+| `hand_channel` | 프로필 값(`can0`) | 손 CAN 채널. `sim`이면 가상 손 보드(CAN 불필요, 팔은 dry run 유지), `vcan0`이면 `hand_sim --channel vcan0` 상대 |
+| `hand_estimate` | `true` | 손이 있으면 명령 자세의 손가락 관절 추정을 `/joint_states`에 병합 (RViz용, 측정 아님) |
 
-`remote.launch.py`: `rviz` (`true`), `gui` (`true`), `rviz_config` (`config/bringup.rviz`). `demo.launch.py`는 위 인자를 모두 받아 양쪽에 넘깁니다.
+`remote.launch.py`: `rviz` (`true`), `gui` (`true`), `rviz_config` (`config/bringup.rviz`). `demo.launch.py`는 위 인자를 모두 받아 양쪽에 넘깁니다(`arm`, `publish_tf` 제외). 보드 없이 손까지: `ros2 launch bhl_bringup demo.launch.py hands:=both hand_channel:=sim` ([bhl_hand_sdk/SIM_GUIDE.md](../bhl_hand_sdk/SIM_GUIDE.md))
 
 ## description 패키지 (URDF, 메시)
 
