@@ -71,7 +71,18 @@ ros2 run bhl_hand_sdk hand_cli right listen --seconds 3          # 하트비트 
 - `control`: `control_rate_hz` 50, `max_speed` 2.0 행정/s, `reply_timeout` 5 ms(늦게 온 APPLIED는 `late`로 세고 실패에서 뺌), `max_missed` 10, `estop_action`, `antagonist_pairs`, `max_pair_sum`
 - `grips`: 이름 있는 자세(당김 비율). 실제 손에서 확인해야 하는 시작값입니다.
 
-**현재 손에는 v1 펌웨어가 올라가 있습니다.** v2 스케치를 올리기 전까지는 `protocol: 1`로 쓰세요. 그대로 2로 두면 enable이 `NO_REPLY`로 거부됩니다.
+## 펌웨어
+
+| 폴더 | 내용 |
+|---|---|
+| `firmware/DexHandLeft/` | **왼손 보드**에 올릴 v2 스케치 (노드 60, 프로필 `c3c778d2`) |
+| `firmware/DexHandRight/` | **오른손 보드**에 올릴 v2 스케치 (노드 61, 프로필 `c7b282e4`) |
+| `firmware/UPLOAD_GUIDE.md` | 어느 보드에 무엇을 올리는지, 업로드 방법, PING으로 확인, 보정값 변경 시 순서 |
+| `firmware/PROTOCOL_v2.md` | 손 → PC 응답(STATUS, PONG) 형식 |
+| `firmware/DexHandCan_shared/`, `tools/make_sketches.py` | 두 스케치의 공통 원본과 재생성 도구 |
+| `firmware/tests/ack_test.cpp` | 펌웨어 로직 네이티브 테스트 |
+
+`protocol`은 손별 설정입니다. v2를 올리지 않은 손은 `protocol: 1`로 두세요(결과는 `SENT`). v1 손에 2로 두면 enable이 `NO_REPLY`로 거부됩니다.
 
 ## 테스트
 
@@ -79,4 +90,4 @@ ros2 run bhl_hand_sdk hand_cli right listen --seconds 3          # 하트비트 
 python3 -m pytest -q ros2_ws/src/bhl_hand_sdk/test
 ```
 
-`test/fake_hand.py`는 python-can 가상 버스에 올린 v2 손입니다(펌웨어 `HandController.h`와 같은 규칙). 22개 테스트가 ID 규칙, 프레임 바이트, 변환, 길항 쌍, dry run, v2 전달 경로(적용, 무응답 손 거부, 프로필 불일치, RESUME, LOST, 그룹 손실, 응답 손실 구분, 늦은 응답, HELD_ELSEWHERE, 범위 거부 채널, HOLD/RESUME, E-STOP, 하트비트), v1 경로, diagnostics를 확인합니다. 실제 CAN, 실제 손, ROS 노드 실행 확인은 아직 하지 않았습니다.
+`test/test_firmware.py`(5개)는 각 보드의 스케치가 `dexhand.yaml`의 같은 손과 노드, 펄스 범위, 프로필 태그까지 일치하는지, 스케치가 공통 원본에서 생성된 그대로인지 확인하고 펌웨어 로직 네이티브 테스트를 돌립니다. `test/fake_hand.py`는 python-can 가상 버스에 올린 v2 손입니다(펌웨어 `HandController.h`와 같은 규칙). 22개 테스트가 ID 규칙, 프레임 바이트, 변환, 길항 쌍, dry run, v2 전달 경로(적용, 무응답 손 거부, 프로필 불일치, RESUME, LOST, 그룹 손실, 응답 손실 구분, 늦은 응답, HELD_ELSEWHERE, 범위 거부 채널, HOLD/RESUME, E-STOP, 하트비트), v1 경로, diagnostics를 확인합니다. 실제 CAN, 실제 손, ROS 노드 실행 확인은 아직 하지 않았습니다.

@@ -1,5 +1,7 @@
 # DexHand CAN 프로토콜 v2: 수신 응답 추가
 
+어느 보드에 무엇을 올리는지와 업로드 방법은 [UPLOAD_GUIDE.md](UPLOAD_GUIDE.md)를 보세요.
+
 v1(dexhand_control `PROTOCOL.md`, 2026-11-03)에 손 → PC 응답 두 가지를 더한 판입니다. PC → 손 프레임(제어, 목표)은 v1과 바이트 단위로 같으므로, 기존 `HandSender`는 v2 펌웨어에서도 그대로 동작합니다(응답을 읽지 않을 뿐).
 
 ## 왜 필요한가
