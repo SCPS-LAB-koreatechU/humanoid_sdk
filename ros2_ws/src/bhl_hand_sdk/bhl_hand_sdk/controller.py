@@ -57,9 +57,12 @@ class Delivery:
 
 
 class HandController:
-    def __init__(self, config: HandConfig, hand: str, dry_run: bool = True, bus=None) -> None:
+    def __init__(self, config: HandConfig, hand: str, dry_run: bool = True, bus=None,
+                 channel: str | None = None) -> None:
         self.config = config
         self.spec: HandSpec = config.hand(hand)
+        if channel:
+            self.spec.channel = channel      # e.g. vcan0 or sim instead of the config's can0
         self.dry_run = dry_run
         self.protocol = self.spec.protocol
         self.bus = None

@@ -8,6 +8,9 @@
                                         # joint states come from somewhere else (bhl_onboard on the RDK X5)
     ros2 launch bhl_bringup robot.launch.py joint_state_sources:=/arm_controller/joint_states,/hand/joint_states
     ros2 launch bhl_bringup robot.launch.py hands:=both            # + DexHand nodes (bhl_hand_sdk), same dry_run
+    ros2 launch bhl_bringup robot.launch.py hands:=both hand_channel:=sim
+                                        # hands on simulated boards (hand_sim, no CAN); the arms stay
+                                        # in dry run unless dry_run:=false
 
 Runs on the computer that is wired to the motors (Jetson / RDK X5 / bench PC):
 
@@ -24,6 +27,9 @@ Runs on the computer that is wired to the motors (Jetson / RDK X5 / bench PC):
                                           ~/delivery (APPLIED / NO_REPLY / REJECT_ per set),
                                           follows /arm_controller/status E-STOP. No /joint_states:
                                           the finger servos measure nothing.
+    hand_joint_estimate     bhl_hand_sdk  (hand_estimate:=true, default) commanded pulses -> estimated
+                                          finger joints, merged into /joint_states so RViz draws the
+                                          command (an estimate, not a measurement)
 
 Nothing graphical runs here; that is remote.launch.py on the PC. Both only need
 to share ROS_DOMAIN_ID (env.sh). Without a URDF -- description package not
@@ -88,20 +94,37 @@ def parse_hands(text: str) -> list[str]:
     return [h.strip() for h in text.split(",") if h.strip()]
 
 
-def hand_nodes(context, hands: list[str]) -> list:
+def hand_available() -> bool:
     try:
         get_package_share_directory(HAND_PACKAGE)
+        return True
     except PackageNotFoundError:
+        return False
+
+
+def hand_nodes(context, hands: list[str], estimate: bool) -> list:
+    if not hand_available():
         return [LogInfo(msg=f"[bhl_bringup] hands:={','.join(hands)} but {HAND_PACKAGE} is not built; "
                             "no hand nodes started.")]
-    params = {"dry_run": truthy(context, "dry_run")}
+    channel = LaunchConfiguration("hand_channel").perform(context)
+    # A simulated board is not hardware: the hand streams to it even while the
+    # arms stay in dry run (dry_run:=false would put the arms live on can0).
+    params = {"dry_run": truthy(context, "dry_run") and channel != "sim"}
     hand_config = LaunchConfiguration("hand_config").perform(context)
     if hand_config:
         params["config"] = hand_config
-    return [Node(package=HAND_PACKAGE, executable="hand_controller", name=f"hand_{hand}", output="screen",
-                 parameters=[{**params, "hand": hand}],
-                 sigterm_timeout="5")     # time to send HOLD on shutdown
-            for hand in hands]
+    if channel:
+        params["channel"] = channel
+    nodes = [Node(package=HAND_PACKAGE, executable="hand_controller", name=f"hand_{hand}", output="screen",
+                  parameters=[{**params, "hand": hand}],
+                  sigterm_timeout="5")     # time to send HOLD on shutdown
+             for hand in hands]
+    if estimate:
+        nodes += [Node(package=HAND_PACKAGE, executable="hand_joint_estimate", name=f"hand_{hand}_estimate",
+                       output="screen",
+                       parameters=[{"hand": hand, **({"config": hand_config} if hand_config else {})}])
+                  for hand in hands]
+    return nodes
 
 
 def launch_setup(context, *_args, **_kwargs):
@@ -110,6 +133,11 @@ def launch_setup(context, *_args, **_kwargs):
     publish_tf = truthy(context, "publish_tf")
     rate = int(float(LaunchConfiguration("rate").perform(context)))
     sources = parse_sources(LaunchConfiguration("joint_state_sources").perform(context))
+    hands = parse_hands(LaunchConfiguration("hands").perform(context))
+    estimate = bool(hands) and truthy(context, "hand_estimate") and hand_available()
+    if estimate:
+        sources += [f"/hand_{h}/joint_states_estimate" for h in hands
+                    if f"/hand_{h}/joint_states_estimate" not in sources]
     urdf, problem = find_urdf(LaunchConfiguration("urdf").perform(context),
                               LaunchConfiguration("model").perform(context))
     if publish_tf and not urdf:
@@ -141,9 +169,8 @@ def launch_setup(context, *_args, **_kwargs):
                  parameters=[{"robot_description": Path(urdf).read_text(),
                               "publish_frequency": float(rate)}]),
         ]
-    hands = parse_hands(LaunchConfiguration("hands").perform(context))
     if hands:
-        actions += hand_nodes(context, hands)
+        actions += hand_nodes(context, hands, estimate)
     return actions
 
 
@@ -169,5 +196,10 @@ def generate_launch_description() -> LaunchDescription:
                               description="DexHand nodes from bhl_hand_sdk: none | left | right | both"),
         DeclareLaunchArgument("hand_config", default_value="",
                               description="bhl_hand_sdk profiles; default: its config/dexhand.yaml"),
+        DeclareLaunchArgument("hand_channel", default_value="",
+                              description="hands' CAN channel: '' = the profile's (can0), vcan0, or sim "
+                                          "(simulated boards, no CAN)"),
+        DeclareLaunchArgument("hand_estimate", default_value="true",
+                              description="with hands: draw the commanded finger pose in /joint_states (estimate)"),
         OpaqueFunction(function=launch_setup),
     ])

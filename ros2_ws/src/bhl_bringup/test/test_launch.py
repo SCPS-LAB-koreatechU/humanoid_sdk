@@ -251,11 +251,27 @@ def test_robot_starts_no_hand_by_default(ros):
 def test_robot_hands_both_follow_dry_run(ros):
     ros.with_description()
     actions = setup(ros.load("robot"), hands="both", dry_run="false", hand_config="/tmp/hands.yaml")
-    hands = [a for a in actions if isinstance(a, Node) and a.package == "bhl_hand_sdk"]
+    hands = [a for a in actions if isinstance(a, Node) and a.executable == "hand_controller"]
     assert [h.name for h in hands] == ["hand_left", "hand_right"]
     assert hands[1].parameters == [{"dry_run": False, "config": "/tmp/hands.yaml", "hand": "right"}]
-    assert all(h.executable == "hand_controller" and h.sigterm_timeout == "5" for h in hands)
+    assert all(h.sigterm_timeout == "5" for h in hands)
     assert "arm_controller" in nodes(actions)
+
+
+def test_robot_hands_estimate_joins_joint_states(ros):
+    ros.with_description()
+    actions = setup(ros.load("robot"), hands="right", hand_channel="sim")
+    estimators = [a for a in actions if isinstance(a, Node) and a.executable == "hand_joint_estimate"]
+    assert [e.name for e in estimators] == ["hand_right_estimate"]
+    assert nodes(actions)["joint_state_publisher"].parameters[0]["source_list"] == [
+        "/arm_controller/joint_states", "/hand_right/joint_states_estimate"]
+    assert nodes(actions)["hand_controller"].parameters[0]["channel"] == "sim"
+    assert nodes(actions)["hand_controller"].parameters[0]["dry_run"] is False      # streams to the sim
+    assert nodes(actions)["arm_controller"].parameters[0]["dry_run"] is True        # arms untouched
+
+    actions = setup(ros.load("robot"), hands="right", hand_estimate="false")
+    assert not [a for a in actions if isinstance(a, Node) and a.executable == "hand_joint_estimate"]
+    assert nodes(actions)["joint_state_publisher"].parameters[0]["source_list"] == ["/arm_controller/joint_states"]
 
 
 def test_robot_hands_without_the_package_is_reported(ros, monkeypatch):
@@ -323,7 +339,8 @@ def test_demo_includes_both_halves_and_forwards_every_argument(ros):
     forwarded = {name for i in includes for name, _ in i.launch_arguments}
     assert forwarded == declared
     robot_args = {name for name, _ in includes[0].launch_arguments}
-    assert robot_args == {"dry_run", "config", "model", "urdf", "joint_state_sources", "rate"}
+    assert robot_args == {"dry_run", "config", "model", "urdf", "joint_state_sources", "rate",
+                          "hands", "hand_config", "hand_channel", "hand_estimate"}
     assert {name for name, _ in includes[1].launch_arguments} == {"rviz", "gui", "rviz_config"}
 
 

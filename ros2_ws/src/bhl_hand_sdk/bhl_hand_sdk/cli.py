@@ -8,6 +8,9 @@ what came back. Do not run it while hand_controller owns the same hand.
     hand_cli right hold | resume | off
     hand_cli right listen --seconds 3         # print heartbeats / replies only
     hand_cli right grip power --dry-run       # no CAN opened
+    hand_cli right grip pinch --channel sim   # against the simulated board (firmware logic, no CAN)
+    hand_cli right grip pinch --channel vcan0 # against hand_sim --channel vcan0
+    hand_cli right grip power --channel sim --sim-command "drop right 3"   # inject a fault first
 
 Exit code 0 only when the hand confirmed (v2) or, for v1 firmware, frames were sent.
 """
@@ -72,12 +75,17 @@ def main(argv=None) -> int:
     parser.add_argument("--config", default=default_config())
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--protocol", type=int, choices=[1, 2], help="override the config")
+    parser.add_argument("--channel", help="override the config's CAN channel: can0, vcan0, sim")
+    parser.add_argument("--sim-command", action="append", default=[],
+                        help="with --channel sim: a hand_sim command sent before the action")
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
     if args.protocol:
         config.hand(args.hand).protocol = args.protocol
-    hand = HandController(config, args.hand, dry_run=args.dry_run)
+    hand = HandController(config, args.hand, dry_run=args.dry_run, channel=args.channel)
+    for line in args.sim_command:
+        hand.bus.sim_command(line)
     spec = hand.spec
     print(f"{spec.name} hand, node {spec.node} on {spec.channel}, protocol {spec.protocol}"
           + (" (DRY RUN)" if args.dry_run else ""))

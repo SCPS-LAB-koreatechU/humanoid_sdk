@@ -54,3 +54,31 @@ grips:
   pinch: [0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1]
   # index pointing, the rest flexed
   point: [1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1]
+
+# RViz only: commanded pull fractions -> estimated DexHand V2 joint angles
+# (hand_joint_estimate). A drawing of the command, NOT a measurement.
+#   joint_rad = clamp(sum(coef[channel] * fraction[channel]), limits)
+# Names are the URDF's without R_ / L_. Default = hypothesis to check on the hand:
+# each finger's upper + lower tendons are a differential pair for the knuckle
+# (both pulled -> Pitch, difference -> Yaw), the tip tendon drives Flexor (DIP
+# mimics it in the URDF), thumb right / left pull a pair for Thumb_Pitch / Yaw.
+# Coefficients reach dexhandv2_right.urdf's limits at a full pull. If a finger
+# yaws the wrong way in RViz, flip the sign of its Yaw coefficients.
+visualization:
+  joints:
+    Pinky_Pitch:   {coef: {1: 0.6545, 2: 0.6545},   limits: [0.0, 1.309]}
+    Pinky_Yaw:     {coef: {1: 0.349, 2: -0.349},    limits: [-0.349, 0.349]}
+    Pinky_Flexor:  {coef: {12: 1.047},              limits: [0.0, 1.047]}
+    Ring_Pitch:    {coef: {3: 0.6545, 4: 0.6545},   limits: [0.0, 1.309]}
+    Ring_Yaw:      {coef: {3: 0.349, 4: -0.349},    limits: [-0.349, 0.349]}
+    Ring_Flexor:   {coef: {11: 1.047},              limits: [0.0, 1.047]}
+    Middle_Pitch:  {coef: {5: 0.6545, 6: 0.6545},   limits: [0.0, 1.309]}
+    Middle_Yaw:    {coef: {5: 0.349, 6: -0.349},    limits: [-0.349, 0.349]}
+    Middle_Flexor: {coef: {10: 1.047},              limits: [0.0, 1.047]}
+    Index_Pitch:   {coef: {7: 0.6545, 8: 0.6545},   limits: [0.0, 1.309]}
+    Index_Yaw:     {coef: {7: 0.349, 8: -0.349},    limits: [-0.349, 0.349]}
+    Index_Flexor:  {coef: {9: 1.047},               limits: [0.0, 1.047]}
+    Thumb_Pitch:   {coef: {13: 0.5236, 14: 0.5236}, limits: [0.0, 1.047]}
+    Thumb_Yaw:     {coef: {13: 0.5236, 14: -0.5236}, limits: [-0.524, 0.524]}
+    Thumb_Roll:    {coef: {},                       limits: [-0.349, 0.349]}
+    Thumb_Flexor:  {coef: {15: 1.047},              limits: [0.0, 1.047]}

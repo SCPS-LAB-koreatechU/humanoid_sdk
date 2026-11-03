@@ -39,6 +39,8 @@ ros2 service call /hand_right/hold std_srvs/srv/Trigger    # success = CONTROL_A
 | `~/delivery` | `String` JSON | 세트마다 전달 결과 |
 | `~/command_us` | `UInt16MultiArray` | 명령한 펄스폭 (측정값 아님) |
 | `~/status` | `String` JSON, 10 Hz | 상태, 손이 보낸 플래그, 적용 횟수, 통계 |
+| `~/sim_command` | `String` (in) | `channel: sim`일 때만: 가상 보드 고장 주입 (`power right off` 등) |
+| `/hand_<손>/joint_states_estimate` | `JointState` | `hand_joint_estimate` 노드: 명령 자세의 관절 추정 (RViz용, 측정 아님) |
 | `/diagnostics` | `DiagnosticArray`, 1 Hz | OK / WARN / ERROR |
 
 채널 순서는 dexhand_control의 CAN 순서입니다: 소지 위, 아래, 약지 위, 아래, 중지 위, 아래, 검지 위, 아래, 검지 끝, 중지 끝, 약지 끝, 소지 끝, 엄지 오른쪽 당김, 엄지 왼쪽 당김, 엄지 끝. 당김 비율은 서보 행정의 비율이지 관절각이 아닙니다.
@@ -71,6 +73,15 @@ ros2 run bhl_hand_sdk hand_cli right listen --seconds 3          # 하트비트 
 - `control`: `control_rate_hz` 50, `max_speed` 2.0 행정/s, `reply_timeout` 5 ms(늦게 온 APPLIED는 `late`로 세고 실패에서 뺌), `max_missed` 10, `estop_action`, `antagonist_pairs`, `max_pair_sum`
 - `grips`: 이름 있는 자세(당김 비율). 실제 손에서 확인해야 하는 시작값입니다.
 
+## 시뮬레이션 (보드 없이)
+
+```bash
+ros2 launch bhl_hand_sdk sim.launch.py                              # 가상 손 보드 + RViz V2 손
+ros2 launch bhl_bringup demo.launch.py hands:=both hand_channel:=sim  # 로봇 전체 RViz, 팔은 dry run
+```
+
+가상 보드(`hand_sim`)는 실제 펌웨어 로직을 PC에서 돌린 것이고, RViz 손은 명령을 그린 추정입니다(`hand_joint_estimate`). 고장 주입, vcan0 사용법, 매핑 조정은 [SIM_GUIDE.md](SIM_GUIDE.md)를 보세요.
+
 ## 펌웨어
 
 | 폴더 | 내용 |
@@ -81,6 +92,7 @@ ros2 run bhl_hand_sdk hand_cli right listen --seconds 3          # 하트비트 
 | `firmware/PROTOCOL_v2.md` | 손 → PC 응답(STATUS, PONG) 형식 |
 | `firmware/DexHandCan_shared/`, `tools/make_sketches.py` | 두 스케치의 공통 원본과 재생성 도구 |
 | `firmware/tests/ack_test.cpp` | 펌웨어 로직 네이티브 테스트 |
+| `firmware/sim/hand_sim.cpp` | 가상 손 보드 (같은 펌웨어 헤더, SocketCAN 또는 stdio) |
 
 `protocol`은 손별 설정입니다. v2를 올리지 않은 손은 `protocol: 1`로 두세요(결과는 `SENT`). v1 손에 2로 두면 enable이 `NO_REPLY`로 거부됩니다.
 
@@ -89,5 +101,7 @@ ros2 run bhl_hand_sdk hand_cli right listen --seconds 3          # 하트비트 
 ```bash
 python3 -m pytest -q ros2_ws/src/bhl_hand_sdk/test
 ```
+
+`test/test_sim.py`(11개)는 가상 보드, 즉 실제 펌웨어 로직을 상대로 SDK를 끝까지 돌립니다(C++ 컴파일러 필요). `test/test_estimate.py`(7개)는 관절 추정 매핑과 V2 URDF 로더, `test/test_launch_files.py`(5개)는 launch 파일을 확인합니다.
 
 `test/test_firmware.py`(5개)는 각 보드의 스케치가 `dexhand.yaml`의 같은 손과 노드, 펄스 범위, 프로필 태그까지 일치하는지, 스케치가 공통 원본에서 생성된 그대로인지 확인하고 펌웨어 로직 네이티브 테스트를 돌립니다. `test/fake_hand.py`는 python-can 가상 버스에 올린 v2 손입니다(펌웨어 `HandController.h`와 같은 규칙). 22개 테스트가 ID 규칙, 프레임 바이트, 변환, 길항 쌍, dry run, v2 전달 경로(적용, 무응답 손 거부, 프로필 불일치, RESUME, LOST, 그룹 손실, 응답 손실 구분, 늦은 응답, HELD_ELSEWHERE, 범위 거부 채널, HOLD/RESUME, E-STOP, 하트비트), v1 경로, diagnostics를 확인합니다. 실제 CAN, 실제 손, ROS 노드 실행 확인은 아직 하지 않았습니다.

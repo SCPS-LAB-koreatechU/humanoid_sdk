@@ -152,6 +152,9 @@ class HandBus:
 
     Linux delivers every frame to every socket on can0, so the kernel filter keeps
     only this hand's STATUS / PONG here and the arm's 1000 frames/s never reach Python.
+
+    channel "sim" needs no CAN at all: the bus is a private hand_sim --stdio
+    process (bhl_hand_sdk.sim), the boards' firmware logic on this PC.
     """
 
     def __init__(self, channel: str, nodes, bitrate: int = 1_000_000, interface: str = "socketcan",
@@ -162,6 +165,9 @@ class HandBus:
         self.channel = channel
         filters = [{"can_id": can_id(f, n), "can_mask": 0x7FF, "extended": False}
                    for n in nodes for f in (F_STATUS, F_PONG)]
+        if bus is None and channel == "sim":
+            from .sim import SimPipeBus
+            bus = SimPipeBus(nodes=list(nodes))
         if bus is not None:
             self._bus = bus
             self._bus.set_filters(filters)
@@ -193,6 +199,16 @@ class HandBus:
                     return frame
             if left <= 0:
                 return None
+
+    @property
+    def simulated(self) -> bool:
+        return hasattr(self._bus, "command")
+
+    def sim_command(self, line: str) -> None:
+        """Fault injection on a channel: sim bus ('power right off', 'drop right 3', ...)."""
+        if not self.simulated:
+            raise RuntimeError("not a simulated bus (channel: sim)")
+        self._bus.command(line)
 
     def close(self) -> None:
         try:

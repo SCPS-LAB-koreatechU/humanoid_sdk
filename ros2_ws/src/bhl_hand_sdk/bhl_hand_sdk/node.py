@@ -22,7 +22,10 @@ socket, so an arm cycle waiting for motor replies never delays the hand.
   /diagnostics    diagnostic_msgs/DiagnosticArray (out, 1 Hz)
 
 Parameters: config (YAML), hand, dry_run (default true), grip, grip_level,
-follow_arm_estop (default true: /arm_controller/status estop -> this hand's estop).
+follow_arm_estop (default true: /arm_controller/status estop -> this hand's estop),
+channel ("" = the config's; vcan0 for hand_sim on vcan0; sim for a private
+simulated board, which then also takes faults on ~/sim_command, std_msgs/String,
+e.g. "power right off", "drop right 3", "lose right 2", "fail right").
 
 There is no hand /joint_states on purpose: the ES3352 servos measure nothing.
 """
@@ -56,9 +59,11 @@ class HandControllerNode(Node):
         self.declare_parameter("hand", "right")
         self.declare_parameter("dry_run", True)
         self.declare_parameter("follow_arm_estop", True)
+        self.declare_parameter("channel", "")
         config = load_config(self.get_parameter("config").value)
         self.hand = HandController(config, str(self.get_parameter("hand").value),
-                                   dry_run=bool(self.get_parameter("dry_run").value))
+                                   dry_run=bool(self.get_parameter("dry_run").value),
+                                   channel=str(self.get_parameter("channel").value) or None)
         self.dt = 1.0 / config.control_rate_hz
         self.declare_parameter("grip", "open", ParameterDescriptor(
             description=f"named grip: {sorted(config.grips)}"))
@@ -73,6 +78,8 @@ class HandControllerNode(Node):
         self.diagnostics_pub = self.create_publisher(DiagnosticArray, "/diagnostics", 10)
         self.create_subscription(Float64MultiArray, "~/target", self._on_target, 10)
         self.create_subscription(UInt16MultiArray, "~/target_us", self._on_target_us, 10)
+        if self.hand.bus is not None and self.hand.bus.simulated:
+            self.create_subscription(String, "~/sim_command", self._on_sim_command, 10)
         if self.get_parameter("follow_arm_estop").value:
             self.create_subscription(String, "/arm_controller/status", self._on_arm_status, 10)
         self.create_service(SetBool, "~/enable", self._on_enable)
@@ -102,7 +109,7 @@ class HandControllerNode(Node):
                                                reason=f"unknown grip; known {sorted(self.hand.config.grips)}")
             elif param.name == "grip_level":
                 level = float(param.value)
-            elif param.name in ("config", "hand", "dry_run", "follow_arm_estop"):
+            elif param.name in ("config", "hand", "dry_run", "follow_arm_estop", "channel"):
                 return SetParametersResult(successful=False, reason=f"{param.name} is fixed at start-up")
             else:
                 continue
@@ -124,6 +131,10 @@ class HandControllerNode(Node):
             self.hand.set_goal_us(message.data)
         except ValueError as error:
             self.get_logger().warn(f"~/target_us refused: {error}")
+
+    def _on_sim_command(self, message: String) -> None:
+        self.hand.bus.sim_command(message.data)
+        self.get_logger().warn(f"hand_sim: {message.data}")
 
     def _on_arm_status(self, message: String) -> None:
         try:

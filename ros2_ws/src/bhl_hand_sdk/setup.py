@@ -13,7 +13,13 @@ setup(
         ("share/" + package_name, ["package.xml", "README.md"]),
         ("share/" + package_name + "/config", glob("config/*.yaml")),
         ("share/" + package_name + "/launch", glob("launch/*.py")),
+        ("share/" + package_name + "/rviz", glob("rviz/*.rviz")),
         ("share/" + package_name + "/firmware", glob("firmware/*.md")),
+        # hand_sim builds from these on first use
+        ("share/" + package_name + "/firmware/sim", glob("firmware/sim/*.cpp")),
+        ("share/" + package_name + "/firmware/DexHandCan_shared", glob("firmware/DexHandCan_shared/*")),
+        ("share/" + package_name + "/firmware/DexHandLeft", glob("firmware/DexHandLeft/*")),
+        ("share/" + package_name + "/firmware/DexHandRight", glob("firmware/DexHandRight/*")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -25,6 +31,8 @@ setup(
         "console_scripts": [
             "hand_controller = bhl_hand_sdk.node:main",
             "hand_cli = bhl_hand_sdk.cli:main",
+            "hand_sim = bhl_hand_sdk.sim:main",
+            "hand_joint_estimate = bhl_hand_sdk.estimate_node:main",
         ],
     },
 )
